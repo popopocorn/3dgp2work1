@@ -109,6 +109,7 @@ class CGameObject
 {
 private:
 	int								m_nReferences = 0;
+	ID3D12Resource*					gmtxresource = NULL;
 
 public:
 	void AddRef();
