@@ -50,6 +50,9 @@ D3D12_SHADER_BYTECODE CShader::CompileShaderFromFile(WCHAR *pszFileName, LPCSTR 
 	char *pErrorString = NULL;
 	if (pd3dErrorBlob) pErrorString = (char *)pd3dErrorBlob->GetBufferPointer();
 
+	/*OutputDebugString(L"¿À·ù:");
+	OutputDebugStringA((char*)pd3dErrorBlob->GetBufferPointer());
+	OutputDebugString(L"\n\n\n");*/
 	D3D12_SHADER_BYTECODE d3dShaderByteCode;
 	d3dShaderByteCode.BytecodeLength = (*ppd3dShaderBlob)->GetBufferSize();
 	d3dShaderByteCode.pShaderBytecode = (*ppd3dShaderBlob)->GetBufferPointer();
@@ -317,12 +320,12 @@ D3D12_INPUT_LAYOUT_DESC InstancedShader::CreateInputLayout()
 
 D3D12_SHADER_BYTECODE InstancedShader::CreateVertexShader()
 {
-	return(CShader::CompileShaderFromFile(L"instanceShaders.hlsl", "VSLighting", "vs_5_1", &m_pd3dVertexShaderBlob));
+	return(CShader::CompileShaderFromFile(L"instanceShader.hlsl", "VSLighting", "vs_5_1", &m_pd3dVertexShaderBlob));
 }
 
 D3D12_SHADER_BYTECODE InstancedShader::CreatePixelShader()
 {
-	return(CShader::CompileShaderFromFile(L"instanceShaders.hlsl", "PSLighting", "ps_5_1", &m_pd3dPixelShaderBlob));
+	return(CShader::CompileShaderFromFile(L"instanceShader.hlsl", "PSLighting", "ps_5_1", &m_pd3dPixelShaderBlob));
 }
 
 void InstancedShader::CreateShader(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandList* pd3dCommandList, ID3D12RootSignature* pd3dGraphicsRootSignature)

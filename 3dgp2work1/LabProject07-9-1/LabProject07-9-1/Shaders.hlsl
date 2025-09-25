@@ -19,6 +19,7 @@ cbuffer cbGameObjectInfo : register(b2)
 	MATERIAL				gMaterial : packoffset(c4);
 };
 
+StructuredBuffer<float4x4> gmtxGameObjects : register(t0);
 #include "Light.hlsl"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -42,12 +43,16 @@ struct VS_LIGHTING_OUTPUT
 #endif
 };
 
-VS_LIGHTING_OUTPUT VSLighting(VS_LIGHTING_INPUT input)
+VS_LIGHTING_OUTPUT VSLighting(VS_LIGHTING_INPUT input, uint instanceID : SV_InstanceID)
 {
 	VS_LIGHTING_OUTPUT output;
 
-	output.normalW = mul(input.normal, (float3x3)gmtxGameObject);
-	output.positionW = (float3)mul(float4(input.position, 1.0f), gmtxGameObject);
+	//output.normalW = mul(input.normal, (float3x3)gmtxGameObjects[instanceID]);
+    //output.positionW = (float3) mul(float4(input.position, 1.0f), gmtxGameObjects[instanceID]);
+	
+    output.normalW = mul(input.normal, (float3x3) gmtxGameObject);
+    output.positionW = (float3) mul(float4(input.position, 1.0f), gmtxGameObject);
+	
 	output.position = mul(mul(float4(output.positionW, 1.0f), gmtxView), gmtxProjection);
 #ifdef _WITH_VERTEX_LIGHTING
 	output.normalW = normalize(output.normalW);

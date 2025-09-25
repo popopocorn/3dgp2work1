@@ -22,7 +22,7 @@
 
 #include <fstream>
 #include <vector>
-
+#include <sstream>
 using namespace std;
 
 #include <d3d12.h>
