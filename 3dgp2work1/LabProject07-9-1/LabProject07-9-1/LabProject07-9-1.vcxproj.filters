@@ -103,5 +103,6 @@
   <ItemGroup>
     <FxCompile Include="Light.hlsl" />
     <FxCompile Include="Shaders.hlsl" />
+    <FxCompile Include="instanceShader.hlsl" />
   </ItemGroup>
 </Project>

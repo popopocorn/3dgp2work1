@@ -70,11 +70,13 @@ void CScene::BuildObjects(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *p
 
 	BuildDefaultLightsAndMaterials();
 
-	m_nGameObjects = 7;
-	m_ppGameObjects = new CGameObject*[m_nGameObjects];
-
+	ID3D12RootSignature* instancedrootsignature = CreateInstancedGraphicsRootSignature(pd3dDevice);
+	
 	CGameObject *pApacheModel = CGameObject::LoadGeometryFromFile(pd3dDevice, pd3dCommandList, m_pd3dGraphicsRootSignature, "Model/Apache.bin");
 	CApacheObject* pApacheObject = NULL;
+
+	InstancedShader* ishader = new InstancedShader();
+	ishader->CreateShader(pd3dDevice, pd3dCommandList, instancedrootsignature);
 
 	pApacheObject = new CApacheObject();
 	pApacheObject->SetChild(pApacheModel, true);
@@ -82,15 +84,16 @@ void CScene::BuildObjects(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *p
 	pApacheObject->SetPosition(+130.0f, 0.0f, 160.0f);
 	pApacheObject->SetScale(1.5f, 1.5f, 1.5f);
 	pApacheObject->Rotate(0.0f, 90.0f, 0.0f);
-	m_ppGameObjects[0] = pApacheObject;
+	pApacheObject->SetShader(ishader);
+	m_ppGameObjects.push_back(pApacheObject);
 
-	pApacheObject = new CApacheObject();
+	/*pApacheObject = new CApacheObject();
 	pApacheObject->SetChild(pApacheModel, true);
 	pApacheObject->OnInitialize();
 	pApacheObject->SetPosition(-75.0f, 0.0f, 80.0f);
 	pApacheObject->SetScale(1.5f, 1.5f, 1.5f);
 	pApacheObject->Rotate(0.0f, -90.0f, 0.0f);
-	m_ppGameObjects[1] = pApacheObject;
+	m_ppGameObjects.push_back(pApacheObject);
 
 	CGameObject *pGunshipModel = CGameObject::LoadGeometryFromFile(pd3dDevice, pd3dCommandList, m_pd3dGraphicsRootSignature, "Model/Gunship.bin");
 	CGunshipObject* pGunshipObject = NULL;
@@ -101,7 +104,7 @@ void CScene::BuildObjects(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *p
 	pGunshipObject->SetPosition(135.0f, 40.0f, 220.0f);
 	pGunshipObject->SetScale(8.5f, 8.5f, 8.5f);
 	pGunshipObject->Rotate(0.0f, -90.0f, 0.0f);
-	m_ppGameObjects[2] = pGunshipObject;
+	m_ppGameObjects.push_back(pGunshipObject);
 
 	CGameObject *pSuperCobraModel = CGameObject::LoadGeometryFromFile(pd3dDevice, pd3dCommandList, m_pd3dGraphicsRootSignature, "Model/SuperCobra.bin");
 	CSuperCobraObject* pSuperCobraObject = NULL;
@@ -112,7 +115,7 @@ void CScene::BuildObjects(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *p
 	pSuperCobraObject->SetPosition(95.0f, 50.0f, 50.0f);
 	pSuperCobraObject->SetScale(4.5f, 4.5f, 4.5f);
 	pSuperCobraObject->Rotate(0.0f, -90.0f, 0.0f);
-	m_ppGameObjects[3] = pSuperCobraObject;
+	m_ppGameObjects.push_back(pSuperCobraObject);
 
 	CGameObject *pMi24Model = CGameObject::LoadGeometryFromFile(pd3dDevice, pd3dCommandList, m_pd3dGraphicsRootSignature, "Model/Mi24.bin");
 	CMi24Object* pMi24Object = new CMi24Object();
@@ -121,7 +124,7 @@ void CScene::BuildObjects(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *p
 	pMi24Object->SetPosition(-95.0f, 50.0f, 50.0f);
 	pMi24Object->SetScale(4.5f, 4.5f, 4.5f);
 	pMi24Object->Rotate(0.0f, -90.0f, 0.0f);
-	m_ppGameObjects[4] = pMi24Object;
+	m_ppGameObjects.push_back(pMi24Object);
 
 	CGameObject* pHummerModel = CGameObject::LoadGeometryFromFile(pd3dDevice, pd3dCommandList, m_pd3dGraphicsRootSignature, "Model/Hummer.bin");
 	CHummerObject* pHummerObject = new CHummerObject();
@@ -130,7 +133,7 @@ void CScene::BuildObjects(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *p
 	pHummerObject->SetPosition(260.0f, 0.0f, 150.0f);
 	pHummerObject->SetScale(18.0f, 18.0f, 18.0f);
 	pHummerObject->Rotate(0.0f, -90.0f, 0.0f);
-	m_ppGameObjects[5] = pHummerObject;
+	m_ppGameObjects.push_back(pHummerObject);
 
 	CGameObject* pAbramsModel = CGameObject::LoadGeometryFromFile(pd3dDevice, pd3dCommandList, m_pd3dGraphicsRootSignature, "Model/M26.bin");
 	CM26Object* pTankObject = new CM26Object();
@@ -139,7 +142,7 @@ void CScene::BuildObjects(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *p
 	pTankObject->SetPosition(260.0f, 0.0f, 150.0f);
 	pTankObject->SetScale(18.0f, 18.0f, 18.0f);
 	pTankObject->Rotate(0.0f, -90.0f, 0.0f);
-	m_ppGameObjects[6] = pTankObject;
+	m_ppGameObjects.push_back(pTankObject);*/
 
 	CreateShaderVariables(pd3dDevice, pd3dCommandList);
 }
@@ -148,10 +151,9 @@ void CScene::ReleaseObjects()
 {
 	if (m_pd3dGraphicsRootSignature) m_pd3dGraphicsRootSignature->Release();
 
-	if (m_ppGameObjects)
+	if (! m_ppGameObjects.empty())
 	{
-		for (int i = 0; i < m_nGameObjects; i++) if (m_ppGameObjects[i]) m_ppGameObjects[i]->Release();
-		delete[] m_ppGameObjects;
+		for (int i = 0; i < m_ppGameObjects.size(); i++) if (m_ppGameObjects[i]) m_ppGameObjects[i]->Release();
 	}
 
 	ReleaseShaderVariables();
@@ -194,6 +196,60 @@ ID3D12RootSignature *CScene::CreateGraphicsRootSignature(ID3D12Device *pd3dDevic
 	ID3DBlob *pd3dErrorBlob = NULL;
 	D3D12SerializeRootSignature(&d3dRootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &pd3dSignatureBlob, &pd3dErrorBlob);
 	pd3dDevice->CreateRootSignature(0, pd3dSignatureBlob->GetBufferPointer(), pd3dSignatureBlob->GetBufferSize(), __uuidof(ID3D12RootSignature), (void **)&pd3dGraphicsRootSignature);
+	if (pd3dSignatureBlob) pd3dSignatureBlob->Release();
+	if (pd3dErrorBlob) pd3dErrorBlob->Release();
+
+	return(pd3dGraphicsRootSignature);
+}
+
+ID3D12RootSignature* CScene::CreateInstancedGraphicsRootSignature(ID3D12Device* pd3dDevice)
+{
+	ID3D12RootSignature* pd3dGraphicsRootSignature = NULL;
+
+	D3D12_ROOT_PARAMETER pd3dRootParameters[4];
+
+	pd3dRootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	pd3dRootParameters[0].Descriptor.ShaderRegister = 1; //Camera
+	pd3dRootParameters[0].Descriptor.RegisterSpace = 0;
+	pd3dRootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+	pd3dRootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+	pd3dRootParameters[1].Constants.Num32BitValues = 32;
+	pd3dRootParameters[1].Constants.ShaderRegister = 2; //GameObject
+	pd3dRootParameters[1].Constants.RegisterSpace = 0;
+	pd3dRootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+
+	pd3dRootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	pd3dRootParameters[2].Descriptor.ShaderRegister = 4; //Lights
+	pd3dRootParameters[2].Descriptor.RegisterSpace = 0;
+	pd3dRootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	
+
+	D3D12_DESCRIPTOR_RANGE descrange = {};
+	descrange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	descrange.NumDescriptors = 1;
+	descrange.BaseShaderRegister = 0;
+	descrange.RegisterSpace = 0;
+
+	pd3dRootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	pd3dRootParameters[3].DescriptorTable.NumDescriptorRanges = 1;
+	pd3dRootParameters[3].DescriptorTable.pDescriptorRanges = &descrange;
+	pd3dRootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+	D3D12_ROOT_SIGNATURE_FLAGS d3dRootSignatureFlags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS | D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS | D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
+	D3D12_ROOT_SIGNATURE_DESC d3dRootSignatureDesc;
+	::ZeroMemory(&d3dRootSignatureDesc, sizeof(D3D12_ROOT_SIGNATURE_DESC));
+	d3dRootSignatureDesc.NumParameters = _countof(pd3dRootParameters);
+	d3dRootSignatureDesc.pParameters = pd3dRootParameters;
+	d3dRootSignatureDesc.NumStaticSamplers = 0;
+	d3dRootSignatureDesc.pStaticSamplers = NULL;
+	d3dRootSignatureDesc.Flags = d3dRootSignatureFlags;
+
+	ID3DBlob* pd3dSignatureBlob = NULL;
+	ID3DBlob* pd3dErrorBlob = NULL;
+	D3D12SerializeRootSignature(&d3dRootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &pd3dSignatureBlob, &pd3dErrorBlob);
+	pd3dDevice->CreateRootSignature(0, pd3dSignatureBlob->GetBufferPointer(), pd3dSignatureBlob->GetBufferSize(), __uuidof(ID3D12RootSignature), (void**)&pd3dGraphicsRootSignature);
 	if (pd3dSignatureBlob) pd3dSignatureBlob->Release();
 	if (pd3dErrorBlob) pd3dErrorBlob->Release();
 
@@ -287,7 +343,7 @@ void CScene::Render(ID3D12GraphicsCommandList *pd3dCommandList, CCamera *pCamera
 	D3D12_GPU_VIRTUAL_ADDRESS d3dcbLightsGpuVirtualAddress = m_pd3dcbLights->GetGPUVirtualAddress();
 	pd3dCommandList->SetGraphicsRootConstantBufferView(2, d3dcbLightsGpuVirtualAddress); //Lights
 
-	for (int i = 0; i < m_nGameObjects; i++)
+	for (int i = 0; i < m_ppGameObjects.size(); i++)
 	{
 		if (m_ppGameObjects[i])
 		{
