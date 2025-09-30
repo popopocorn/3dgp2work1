@@ -178,10 +178,13 @@ void CGameObject::Render(ID3D12GraphicsCommandList *pd3dCommandList, CCamera *pC
 			if (m_pMesh) m_pMesh->Render(pd3dCommandList, i);
 		}
 	}
-	if (m_pSibling) m_pSibling->Render(pd3dCommandList, pCamera);
+	if (m_pSibling) {
+		m_pSibling->UpdateShaderVariables(pd3dCommandList);
+		m_pSibling->Render(pd3dCommandList, pCamera);
+	}
 	if (m_pChild) { 
 		//if(m_pChild->gmtxresource != NULL)
-			m_pChild->UpdateShaderVariables(pd3dCommandList);
+		m_pChild->UpdateShaderVariables(pd3dCommandList);
 		m_pChild->Render(pd3dCommandList, pCamera); 
 	}
 }
