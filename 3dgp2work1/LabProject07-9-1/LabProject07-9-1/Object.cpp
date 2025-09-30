@@ -144,6 +144,7 @@ void CGameObject::SetMaterial(int nMaterial, CMaterial *pMaterial)
 
 void CGameObject::Animate(float fTimeElapsed, XMFLOAT4X4 *pxmf4x4Parent)
 {
+	
 	if (m_pSibling) m_pSibling->Animate(fTimeElapsed, pxmf4x4Parent);
 	if (m_pChild) m_pChild->Animate(fTimeElapsed, &m_xmf4x4World);
 }
@@ -222,7 +223,7 @@ void CGameObject::UpdateShaderVariables(ID3D12GraphicsCommandList *pd3dCommandLi
 {
 	XMFLOAT4X4 xmf4x4World;
 	XMStoreFloat4x4(&xmf4x4World,
-		XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4Transform)));
+		XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4World)));
 
 	// 버퍼에 데이터 쓰기
 	void* pMappedData = nullptr;
