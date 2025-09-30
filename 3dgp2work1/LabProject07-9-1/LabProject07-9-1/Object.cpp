@@ -219,6 +219,32 @@ void CGameObject::CreateShaderVariables(ID3D12Device *pd3dDevice, ID3D12Graphics
 	
 }
 
+void CGameObject::CreateShaderVariablesInstanced(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandList* pd3dCommandList, int size)
+{
+	gmtxresource = CreateBufferResource(pd3dDevice, pd3dCommandList, NULL, 64 * size, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+
+
+	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+	srvHeapDesc.NumDescriptors = 1;
+	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	pd3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_pSrvHeap));
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+	srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+	srvDesc.Buffer.NumElements = 1;
+	srvDesc.Buffer.StructureByteStride = sizeof(XMFLOAT4X4);
+	srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+
+	pd3dDevice->CreateShaderResourceView(gmtxresource, &srvDesc,
+		m_pSrvHeap->GetCPUDescriptorHandleForHeapStart());
+
+}
+
 void CGameObject::UpdateShaderVariables(ID3D12GraphicsCommandList *pd3dCommandList)
 {
 	XMFLOAT4X4 xmf4x4World;
