@@ -163,7 +163,7 @@ void CGameObject::Render(ID3D12GraphicsCommandList *pd3dCommandList, CCamera *pC
 {
 	OnPrepareRender();
 
-	UpdateShaderVariable(pd3dCommandList, &m_xmf4x4World);
+	//UpdateShaderVariable(pd3dCommandList, &m_xmf4x4World);
 
 	if (m_nMaterials > 0)
 	{
@@ -179,7 +179,11 @@ void CGameObject::Render(ID3D12GraphicsCommandList *pd3dCommandList, CCamera *pC
 		}
 	}
 	if (m_pSibling) m_pSibling->Render(pd3dCommandList, pCamera);
-	if (m_pChild) m_pChild->Render(pd3dCommandList, pCamera);
+	if (m_pChild) { 
+		//if(m_pChild->gmtxresource != NULL)
+			m_pChild->UpdateShaderVariables(pd3dCommandList);
+		m_pChild->Render(pd3dCommandList, pCamera); 
+	}
 }
 
 void CGameObject::CreateShaderVariables(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *pd3dCommandList)
@@ -187,14 +191,49 @@ void CGameObject::CreateShaderVariables(ID3D12Device *pd3dDevice, ID3D12Graphics
 
 	//일단 행렬 버퍼 저장을 위한 멤버 변수 추가
 	//여기서 행렬 버퍼 리소스 생성하고
-	XMFLOAT4X4 xmf4x4World;
-	XMStoreFloat4x4(&xmf4x4World, XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4World)));
-	gmtxresource = CreateBufferResource(pd3dDevice, pd3dCommandList, NULL, 64, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+	gmtxresource = CreateBufferResource(pd3dDevice, pd3dCommandList, NULL, 64, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+
+
+	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+	srvHeapDesc.NumDescriptors = 1;
+	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	pd3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_pSrvHeap));
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+	srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+	srvDesc.Buffer.NumElements = 1;
+	srvDesc.Buffer.StructureByteStride = sizeof(XMFLOAT4X4);
+	srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+
+	pd3dDevice->CreateShaderResourceView(gmtxresource, &srvDesc,
+		m_pSrvHeap->GetCPUDescriptorHandleForHeapStart());
 	
 }
 
 void CGameObject::UpdateShaderVariables(ID3D12GraphicsCommandList *pd3dCommandList)
 {
+	XMFLOAT4X4 xmf4x4World;
+	XMStoreFloat4x4(&xmf4x4World,
+		XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4Transform)));
+
+	// 버퍼에 데이터 쓰기
+	void* pMappedData = nullptr;
+	D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
+	if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
+	{
+		memcpy(pMappedData, &xmf4x4World, sizeof(XMFLOAT4X4));
+		gmtxresource->Unmap(0, nullptr);
+	}
+
+	ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
+	pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+	pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
 
 }
 
@@ -204,10 +243,46 @@ void CGameObject::UpdateShaderVariable(ID3D12GraphicsCommandList *pd3dCommandLis
 	XMStoreFloat4x4(&xmf4x4World, XMMatrixTranspose(XMLoadFloat4x4(pxmf4x4World)));
 	pd3dCommandList->SetGraphicsRoot32BitConstants(1, 16, &xmf4x4World, 0);*/
 	//여기서 srv생성, 행렬 담아서 넘기면 되겠지
+	XMFLOAT4X4 xmf4x4World;
+	XMStoreFloat4x4(&xmf4x4World,
+		XMMatrixTranspose(XMLoadFloat4x4(pxmf4x4World)));
+
+	// 버퍼에 데이터 쓰기
+	void* pMappedData = nullptr;
+	D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
+	if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
+	{
+		memcpy(pMappedData, &xmf4x4World, sizeof(XMFLOAT4X4));
+		gmtxresource->Unmap(0, nullptr);
+	}
+
+	ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
+	pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+	pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
+
 }
 
 void CGameObject::UpdateShaderVariable(ID3D12GraphicsCommandList *pd3dCommandList, CMaterial *pMaterial)
 {
+	XMFLOAT4X4 xmf4x4World;
+	XMStoreFloat4x4(&xmf4x4World,
+		XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4Transform)));
+
+	// 버퍼에 데이터 쓰기
+	void* pMappedData = nullptr;
+	D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
+	if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
+	{
+		memcpy(pMappedData, &xmf4x4World, sizeof(XMFLOAT4X4));
+		gmtxresource->Unmap(0, nullptr);
+	}
+
+	ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
+	pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+	pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
+
 }
 
 void CGameObject::ReleaseShaderVariables()
@@ -579,7 +654,13 @@ CGameObject *CGameObject::LoadFrameHierarchyFromFile(ID3D12Device *pd3dDevice, I
 				for (int i = 0; i < nChilds; i++)
 				{
 					CGameObject *pChild = CGameObject::LoadFrameHierarchyFromFile(pd3dDevice, pd3dCommandList, pd3dGraphicsRootSignature, pInFile);
-					if (pChild) pGameObject->SetChild(pChild);
+					
+					if (pChild) {
+						pChild->CreateShaderVariables(pd3dDevice, pd3dCommandList);
+						pGameObject->SetChild(pChild);
+						
+					}
+
 #ifdef _WITH_DEBUG_RUNTIME_FRAME_HIERARCHY
 					TCHAR pstrDebug[256] = { 0 };
 					_stprintf_s(pstrDebug, 256, _T("(Child Frame: %p) (Parent Frame: %p)\n"), pChild, pGameObject);

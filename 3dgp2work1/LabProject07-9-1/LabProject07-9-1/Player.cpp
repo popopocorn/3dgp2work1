@@ -72,7 +72,7 @@ void CPlayer::UpdateShaderVariables(ID3D12GraphicsCommandList *pd3dCommandList)
 {
 	XMFLOAT4X4 xmf4x4World;
 	XMStoreFloat4x4(&xmf4x4World,
-		XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4World)));
+		XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4Transform)));
 
 	// 버퍼에 데이터 쓰기
 	void* pMappedData = nullptr;
@@ -271,7 +271,7 @@ void CPlayer::OnPrepareRender()
 void CPlayer::Render(ID3D12GraphicsCommandList *pd3dCommandList, CCamera *pCamera)
 {
 	DWORD nCameraMode = (pCamera) ? pCamera->GetMode() : 0x00;
-	UpdateShaderVariables(pd3dCommandList);
+	UpdateShaderVariable(pd3dCommandList, &m_xmf4x4Transform);
 
 	if (nCameraMode == THIRD_PERSON_CAMERA) CGameObject::Render(pd3dCommandList, pCamera);
 }
@@ -288,6 +288,7 @@ CAirplanePlayer::CAirplanePlayer(ID3D12Device *pd3dDevice, ID3D12GraphicsCommand
 
 	pGameObject->Rotate(15.0f, 0.0f, 0.0f);
 	pGameObject->SetScale(8.5f, 8.5f, 8.5f);
+	pGameObject->CreateShaderVariables(pd3dDevice, pd3dCommandList);
 	SetChild(pGameObject, true);
 
 	OnInitialize();
