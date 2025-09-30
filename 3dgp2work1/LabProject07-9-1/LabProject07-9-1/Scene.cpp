@@ -78,7 +78,7 @@ void CScene::BuildObjects(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *p
 	pApacheObject->SetPosition(+130.0f, 0.0f, 160.0f);
 	pApacheObject->SetScale(1.5f, 1.5f, 1.5f);
 	pApacheObject->Rotate(0.0f, 90.0f, 0.0f);
-	m_ppGameObjects.push_back(pApacheObject);
+	//m_ppGameObjects.push_back(pApacheObject);
 
 	
 

@@ -42,10 +42,52 @@ CPlayer::~CPlayer()
 void CPlayer::CreateShaderVariables(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *pd3dCommandList)
 {
 	if (m_pCamera) m_pCamera->CreateShaderVariables(pd3dDevice, pd3dCommandList);
+	//일단 행렬 버퍼 저장을 위한 멤버 변수 추가
+	//여기서 행렬 버퍼 리소스 생성하고
+	gmtxresource = CreateBufferResource(pd3dDevice, pd3dCommandList, NULL, 64, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+
+
+	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+	srvHeapDesc.NumDescriptors = 1;
+	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	pd3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_pSrvHeap));
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+	srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+	srvDesc.Buffer.NumElements = 1;
+	srvDesc.Buffer.StructureByteStride = sizeof(XMFLOAT4X4);
+	srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+
+	pd3dDevice->CreateShaderResourceView(gmtxresource, &srvDesc,
+		m_pSrvHeap->GetCPUDescriptorHandleForHeapStart());
+
 }
 
 void CPlayer::UpdateShaderVariables(ID3D12GraphicsCommandList *pd3dCommandList)
 {
+	XMFLOAT4X4 xmf4x4World;
+	XMStoreFloat4x4(&xmf4x4World,
+		XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4World)));
+
+	// 버퍼에 데이터 쓰기
+	void* pMappedData = nullptr;
+	D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
+	if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
+	{
+		memcpy(pMappedData, &xmf4x4World, sizeof(XMFLOAT4X4));
+		gmtxresource->Unmap(0, nullptr);
+	}
+
+	ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
+	pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+	pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
+
 }
 
 void CPlayer::ReleaseShaderVariables()
@@ -229,6 +271,8 @@ void CPlayer::OnPrepareRender()
 void CPlayer::Render(ID3D12GraphicsCommandList *pd3dCommandList, CCamera *pCamera)
 {
 	DWORD nCameraMode = (pCamera) ? pCamera->GetMode() : 0x00;
+	UpdateShaderVariables(pd3dCommandList);
+
 	if (nCameraMode == THIRD_PERSON_CAMERA) CGameObject::Render(pd3dCommandList, pCamera);
 }
 
@@ -247,8 +291,8 @@ CAirplanePlayer::CAirplanePlayer(ID3D12Device *pd3dDevice, ID3D12GraphicsCommand
 	SetChild(pGameObject, true);
 
 	OnInitialize();
-
 	CreateShaderVariables(pd3dDevice, pd3dCommandList);
+	//CGameObject::CreateShaderVariables(pd3dDevice, pd3dCommandList);
 }
 
 CAirplanePlayer::~CAirplanePlayer()
