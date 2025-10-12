@@ -144,9 +144,15 @@ void CGameObject::SetMaterial(int nMaterial, CMaterial *pMaterial)
 
 void CGameObject::Animate(float fTimeElapsed, XMFLOAT4X4 *pxmf4x4Parent)
 {
-	
-	if (m_pSibling) m_pSibling->Animate(fTimeElapsed, pxmf4x4Parent);
-	if (m_pChild) m_pChild->Animate(fTimeElapsed, &m_xmf4x4World);
+	if (isInstance) {
+		if (m_pSibling) m_pSibling->Animate(fTimeElapsed, pxmf4x4Parent);
+		for (int i = 0; i < (int)Worlds.size(); ++i) {
+			if (m_pChild) m_pChild->Animate(fTimeElapsed, Worlds.data());
+		}
+	}else{
+		if (m_pSibling) m_pSibling->Animate(fTimeElapsed, pxmf4x4Parent);
+		if (m_pChild) m_pChild->Animate(fTimeElapsed, &m_xmf4x4World);
+	}
 }
 
 CGameObject *CGameObject::FindFrame(char *pstrFrameName)
@@ -176,7 +182,14 @@ void CGameObject::Render(ID3D12GraphicsCommandList *pd3dCommandList, CCamera *pC
 				m_ppMaterials[i]->UpdateShaderVariable(pd3dCommandList);
 			}
 
-			if (m_pMesh) m_pMesh->Render(pd3dCommandList, i);
+			if (m_pMesh)
+			{
+				if(isInstance){
+					m_pMesh->Render(pd3dCommandList, i, Worlds.size());
+				}else{
+					m_pMesh->Render(pd3dCommandList, i);
+				}
+			}
 		}
 	}
 	if (m_pSibling) {
@@ -221,9 +234,18 @@ void CGameObject::CreateShaderVariables(ID3D12Device *pd3dDevice, ID3D12Graphics
 
 void CGameObject::CreateShaderVariablesInstanced(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandList* pd3dCommandList, int size)
 {
+	if (m_pSibling) m_pSibling->CreateShaderVariablesInstanced(pd3dDevice, pd3dCommandList, size);
+	if (m_pChild) m_pChild->CreateShaderVariablesInstanced(pd3dDevice, pd3dCommandList, size);
+	
+	if (gmtxresource) gmtxresource->Release();
 	gmtxresource = CreateBufferResource(pd3dDevice, pd3dCommandList, NULL, 64 * size, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-
+	for (int i = 0; i < size; ++i) {
+		Transforms.clear();
+		Worlds.clear();
+		Transforms.push_back(m_xmf4x4Transform);
+		Worlds.push_back(m_xmf4x4World);
+	}
 
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
 	srvHeapDesc.NumDescriptors = 1;
@@ -234,7 +256,7 @@ void CGameObject::CreateShaderVariablesInstanced(ID3D12Device* pd3dDevice, ID3D1
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 	srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-	srvDesc.Buffer.NumElements = 1;
+	srvDesc.Buffer.NumElements = size;
 	srvDesc.Buffer.StructureByteStride = sizeof(XMFLOAT4X4);
 	srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -247,72 +269,140 @@ void CGameObject::CreateShaderVariablesInstanced(ID3D12Device* pd3dDevice, ID3D1
 
 void CGameObject::UpdateShaderVariables(ID3D12GraphicsCommandList *pd3dCommandList)
 {
-	XMFLOAT4X4 xmf4x4World;
-	XMStoreFloat4x4(&xmf4x4World,
-		XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4World)));
+	if (!isInstance) {
+		XMFLOAT4X4 xmf4x4World;
+		XMStoreFloat4x4(&xmf4x4World,
+			XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4World)));
 
-	// 버퍼에 데이터 쓰기
-	void* pMappedData = nullptr;
-	D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
-	if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
-	{
-		memcpy(pMappedData, &xmf4x4World, sizeof(XMFLOAT4X4));
-		gmtxresource->Unmap(0, nullptr);
+		// 버퍼에 데이터 쓰기
+		void* pMappedData = nullptr;
+		D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
+		if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
+		{
+			memcpy(pMappedData, &xmf4x4World, sizeof(XMFLOAT4X4));
+			gmtxresource->Unmap(0, nullptr);
+		}
+
+		ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
+		pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+		pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
 	}
+	else {
+		std::vector<XMFLOAT4X4> mts;
+		for (XMFLOAT4X4 mt : Worlds) {
+			XMFLOAT4X4 xmf4x4World;
+			XMStoreFloat4x4(&xmf4x4World,
+				XMMatrixTranspose(XMLoadFloat4x4(&mt)));
+			mts.push_back(xmf4x4World);
+		}
+		void* pMappedData = nullptr;
+		D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
+		if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
+		{
+			memcpy(pMappedData, mts.data(), sizeof(XMFLOAT4X4) * mts.size());
+			gmtxresource->Unmap(0, nullptr);
+		}
 
-	ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
-	pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+		ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
+		pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-	pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
+		pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
+
+	}
 
 }
 
 void CGameObject::UpdateShaderVariable(ID3D12GraphicsCommandList *pd3dCommandList, XMFLOAT4X4 *pxmf4x4World)
 {
-	/*XMFLOAT4X4 xmf4x4World;
-	XMStoreFloat4x4(&xmf4x4World, XMMatrixTranspose(XMLoadFloat4x4(pxmf4x4World)));
-	pd3dCommandList->SetGraphicsRoot32BitConstants(1, 16, &xmf4x4World, 0);*/
-	//여기서 srv생성, 행렬 담아서 넘기면 되겠지
-	XMFLOAT4X4 xmf4x4World;
-	XMStoreFloat4x4(&xmf4x4World,
-		XMMatrixTranspose(XMLoadFloat4x4(pxmf4x4World)));
 
-	// 버퍼에 데이터 쓰기
-	void* pMappedData = nullptr;
-	D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
-	if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
-	{
-		memcpy(pMappedData, &xmf4x4World, sizeof(XMFLOAT4X4));
-		gmtxresource->Unmap(0, nullptr);
+	if (!isInstance) {
+		XMFLOAT4X4 xmf4x4World;
+		XMStoreFloat4x4(&xmf4x4World,
+			XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4World)));
+
+		// 버퍼에 데이터 쓰기
+		void* pMappedData = nullptr;
+		D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
+		if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
+		{
+			memcpy(pMappedData, &xmf4x4World, sizeof(XMFLOAT4X4));
+			gmtxresource->Unmap(0, nullptr);
+		}
+
+		ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
+		pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+		pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
 	}
+	else {
+		std::vector<XMFLOAT4X4> mts;
+		for (XMFLOAT4X4 mt : Worlds) {
+			XMFLOAT4X4 xmf4x4World;
+			XMStoreFloat4x4(&xmf4x4World,
+				XMMatrixTranspose(XMLoadFloat4x4(&mt)));
+			mts.push_back(xmf4x4World);
+		}
+		void* pMappedData = nullptr;
+		D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
+		if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
+		{
+			memcpy(pMappedData, mts.data(), sizeof(XMFLOAT4X4) * mts.size());
+			gmtxresource->Unmap(0, nullptr);
+		}
 
-	ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
-	pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+		ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
+		pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-	pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
+		pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
+
+	}
 
 }
 
 void CGameObject::UpdateShaderVariable(ID3D12GraphicsCommandList *pd3dCommandList, CMaterial *pMaterial)
 {
-	XMFLOAT4X4 xmf4x4World;
-	XMStoreFloat4x4(&xmf4x4World,
-		XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4Transform)));
+	if (!isInstance) {
+		XMFLOAT4X4 xmf4x4World;
+		XMStoreFloat4x4(&xmf4x4World,
+			XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4World)));
 
-	// 버퍼에 데이터 쓰기
-	void* pMappedData = nullptr;
-	D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
-	if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
-	{
-		memcpy(pMappedData, &xmf4x4World, sizeof(XMFLOAT4X4));
-		gmtxresource->Unmap(0, nullptr);
+		// 버퍼에 데이터 쓰기
+		void* pMappedData = nullptr;
+		D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
+		if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
+		{
+			memcpy(pMappedData, &xmf4x4World, sizeof(XMFLOAT4X4));
+			gmtxresource->Unmap(0, nullptr);
+		}
+
+		ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
+		pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+		pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
 	}
+	else {
+		std::vector<XMFLOAT4X4> mts;
+		for (XMFLOAT4X4 mt : Worlds) {
+			XMFLOAT4X4 xmf4x4World;
+			XMStoreFloat4x4(&xmf4x4World,
+				XMMatrixTranspose(XMLoadFloat4x4(&mt)));
+			mts.push_back(xmf4x4World);
+		}
+		void* pMappedData = nullptr;
+		D3D12_RANGE readRange = { 0, 0 }; // GPU만 읽음
+		if (SUCCEEDED(gmtxresource->Map(0, &readRange, &pMappedData)))
+		{
+			memcpy(pMappedData, mts.data(), sizeof(XMFLOAT4X4) * mts.size());
+			gmtxresource->Unmap(0, nullptr);
+		}
 
-	ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
-	pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+		ID3D12DescriptorHeap* ppHeaps[] = { m_pSrvHeap };
+		pd3dCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-	pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
+		pd3dCommandList->SetGraphicsRootDescriptorTable(3, m_pSrvHeap->GetGPUDescriptorHandleForHeapStart());
 
+	}
 }
 
 void CGameObject::ReleaseShaderVariables()
@@ -329,10 +419,24 @@ void CGameObject::ReleaseUploadBuffers()
 
 void CGameObject::UpdateTransform(XMFLOAT4X4 *pxmf4x4Parent)
 {
-	m_xmf4x4World = (pxmf4x4Parent) ? Matrix4x4::Multiply(m_xmf4x4Transform, *pxmf4x4Parent) : m_xmf4x4Transform;
+	if (isInstance) {
+		if (m_pSibling) m_pSibling->UpdateTransform(pxmf4x4Parent);
+		for (int i = 0; i < (int)Transforms.size(); ++i) {
+			XMFLOAT4X4 local = Transforms[i];
+			Worlds[i] = (pxmf4x4Parent) ? Matrix4x4::Multiply(local, pxmf4x4Parent[i]) : local;
 
-	if (m_pSibling) m_pSibling->UpdateTransform(pxmf4x4Parent);
-	if (m_pChild) m_pChild->UpdateTransform(&m_xmf4x4World);
+			
+		}
+		if (m_pChild) m_pChild->UpdateTransform(Worlds.data());
+	}
+
+	else {
+		m_xmf4x4World = (pxmf4x4Parent) ? Matrix4x4::Multiply(m_xmf4x4Transform, *pxmf4x4Parent) : m_xmf4x4Transform;
+
+		if (m_pSibling) m_pSibling->UpdateTransform(pxmf4x4Parent);
+		if (m_pChild) m_pChild->UpdateTransform(&m_xmf4x4World);
+	}
+	
 }
 
 void CGameObject::SetPosition(float x, float y, float z)
@@ -340,6 +444,7 @@ void CGameObject::SetPosition(float x, float y, float z)
 	m_xmf4x4Transform._41 = x;
 	m_xmf4x4Transform._42 = y;
 	m_xmf4x4Transform._43 = z;
+
 
 	UpdateTransform(NULL);
 }
@@ -844,15 +949,36 @@ void CApacheObject::OnInitialize()
 
 void CApacheObject::Animate(float fTimeElapsed, XMFLOAT4X4 *pxmf4x4Parent)
 {
-	if (m_pMainRotorFrame)
-	{
-		XMMATRIX xmmtxRotate = XMMatrixRotationY(XMConvertToRadians(360.0f * 2.0f) * fTimeElapsed);
-		m_pMainRotorFrame->m_xmf4x4Transform = Matrix4x4::Multiply(xmmtxRotate, m_pMainRotorFrame->m_xmf4x4Transform);
+	if (isInstance) {
+		if (m_pMainRotorFrame)
+		{
+			XMMATRIX xmmtxRotate = XMMatrixRotationY(XMConvertToRadians(360.0f * 2.0f) * fTimeElapsed);
+			for (int i = 0; i < m_pMainRotorFrame->Transforms.size(); ++i) {
+				m_pMainRotorFrame->Transforms[i]= Matrix4x4::Multiply(xmmtxRotate, m_pMainRotorFrame->Transforms[i]);
+			}
+			
+
+		}
+		if (m_pTailRotorFrame)
+		{
+			XMMATRIX xmmtxRotate = XMMatrixRotationY(XMConvertToRadians(360.0f * 4.0f) * fTimeElapsed);
+			for (int i = 0; i < m_pTailRotorFrame->Transforms.size(); ++i) {
+				m_pTailRotorFrame->Transforms[i] = Matrix4x4::Multiply(xmmtxRotate, m_pTailRotorFrame->Transforms[i]);
+			}
+		}
+
 	}
-	if (m_pTailRotorFrame)
-	{
-		XMMATRIX xmmtxRotate = XMMatrixRotationY(XMConvertToRadians(360.0f * 4.0f) * fTimeElapsed);
-		m_pTailRotorFrame->m_xmf4x4Transform = Matrix4x4::Multiply(xmmtxRotate, m_pTailRotorFrame->m_xmf4x4Transform);
+	else{
+		if (m_pMainRotorFrame)
+		{
+			XMMATRIX xmmtxRotate = XMMatrixRotationY(XMConvertToRadians(360.0f * 2.0f) * fTimeElapsed);
+			m_pMainRotorFrame->m_xmf4x4Transform = Matrix4x4::Multiply(xmmtxRotate, m_pMainRotorFrame->m_xmf4x4Transform);
+		}
+		if (m_pTailRotorFrame)
+		{
+			XMMATRIX xmmtxRotate = XMMatrixRotationY(XMConvertToRadians(360.0f * 4.0f) * fTimeElapsed);
+			m_pTailRotorFrame->m_xmf4x4Transform = Matrix4x4::Multiply(xmmtxRotate, m_pTailRotorFrame->m_xmf4x4Transform);
+		}
 	}
 
 	CGameObject::Animate(fTimeElapsed, pxmf4x4Parent);

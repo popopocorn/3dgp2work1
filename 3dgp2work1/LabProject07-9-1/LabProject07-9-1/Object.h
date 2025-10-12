@@ -109,7 +109,7 @@ class CGameObject
 {
 protected:
 	ID3D12Resource*					gmtxresource = NULL;
-	ID3D12DescriptorHeap* m_pSrvHeap = {};
+	ID3D12DescriptorHeap*			m_pSrvHeap = {};
 private:
 	int								m_nReferences = 0;
 	
@@ -123,6 +123,7 @@ public:
     virtual ~CGameObject();
 
 public:
+	bool							isInstance{};
 	char							m_pstrFrameName[64];
 
 	CMesh							*m_pMesh = NULL;
@@ -133,10 +134,19 @@ public:
 	XMFLOAT4X4						m_xmf4x4Transform;
 	XMFLOAT4X4						m_xmf4x4World;
 
+	std::vector<XMFLOAT4X4>			Transforms;
+	std::vector<XMFLOAT4X4>			Worlds;
+
 	CGameObject 					*m_pParent = NULL;
 	CGameObject 					*m_pChild = NULL;
 	CGameObject 					*m_pSibling = NULL;
 
+
+	void setInstanceMode(bool inst) {
+		if (m_pSibling) m_pSibling->setInstanceMode(inst);
+		if (m_pChild) m_pChild->setInstanceMode(inst);
+		isInstance = inst;
+	};
 	void SetMesh(CMesh *pMesh);
 	void SetShader(CShader *pShader);
 	void SetShader(int nMaterial, CShader *pShader);

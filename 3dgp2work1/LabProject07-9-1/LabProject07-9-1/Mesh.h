@@ -33,6 +33,7 @@ public:
 	UINT GetType() { return(m_nType); }
 	virtual void Render(ID3D12GraphicsCommandList *pd3dCommandList) { }
 	virtual void Render(ID3D12GraphicsCommandList *pd3dCommandList, int nSubSet) { }
+	virtual void Render(ID3D12GraphicsCommandList* pd3dCommandList, int nSubSet, int instancedSize) {};
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -112,4 +113,5 @@ protected:
 
 public:
 	virtual void Render(ID3D12GraphicsCommandList *pd3dCommandList, int nSubSet);
+	virtual void Render(ID3D12GraphicsCommandList *pd3dCommandList, int nSubSet, int instancedSize);
 };

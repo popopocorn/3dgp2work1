@@ -74,12 +74,21 @@ void CScene::BuildObjects(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *p
 	CGameObject* pApacheModel = CGameObject::LoadGeometryFromFile(pd3dDevice, pd3dCommandList, m_pd3dGraphicsRootSignature, "Model/Apache.bin");
 	CApacheObject* pApacheObject = NULL;
 	pApacheObject = new CApacheObject();
-	pApacheModel->CreateShaderVariables(pd3dDevice, pd3dCommandList);
+	//pApacheModel->CreateShaderVariables(pd3dDevice, pd3dCommandList);
 	pApacheObject->SetChild(pApacheModel, true);
 	pApacheObject->OnInitialize();
 	pApacheObject->SetPosition(130.0f, 0.0f, 160.0f);
 	pApacheObject->SetScale(1.5f, 1.5f, 1.5f);
 	pApacheObject->Rotate(0.0f, 90.0f, 0.0f);
+	pApacheObject->CreateShaderVariablesInstanced(pd3dDevice, pd3dCommandList, 1);
+	pApacheObject->setInstanceMode(true);
+	for (int x = 0; x < 21; ++x) {
+		for (int y = 0; y < 21; ++y) {
+			for (int z = 0; z < 21; ++z) {
+
+			}
+		}
+	}
 	m_ppGameObjects.push_back(pApacheObject);
 
 
