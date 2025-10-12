@@ -155,7 +155,7 @@ void CGameObject::Animate(float fTimeElapsed, XMFLOAT4X4 *pxmf4x4Parent)
 	}
 }
 
-CGameObject *CGameObject::FindFrame(char *pstrFrameName)
+CGameObject *CGameObject::FindFrame(const char *pstrFrameName)
 {
 	CGameObject *pFrameObject = NULL;
 	if (!strncmp(m_pstrFrameName, pstrFrameName, strlen(pstrFrameName))) return(this);
@@ -186,6 +186,7 @@ void CGameObject::Render(ID3D12GraphicsCommandList *pd3dCommandList, CCamera *pC
 			{
 				if(isInstance){
 					m_pMesh->Render(pd3dCommandList, i, Worlds.size());
+					
 				}else{
 					m_pMesh->Render(pd3dCommandList, i);
 				}
@@ -239,14 +240,15 @@ void CGameObject::CreateShaderVariablesInstanced(ID3D12Device* pd3dDevice, ID3D1
 	
 	if (gmtxresource) gmtxresource->Release();
 	gmtxresource = CreateBufferResource(pd3dDevice, pd3dCommandList, NULL, 64 * size, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
+	Transforms.clear();
+	Worlds.clear();
 	for (int i = 0; i < size; ++i) {
-		Transforms.clear();
-		Worlds.clear();
+		
 		Transforms.push_back(m_xmf4x4Transform);
 		Worlds.push_back(m_xmf4x4World);
 	}
-
+	
+	
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
 	srvHeapDesc.NumDescriptors = 1;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -290,7 +292,7 @@ void CGameObject::UpdateShaderVariables(ID3D12GraphicsCommandList *pd3dCommandLi
 	}
 	else {
 		std::vector<XMFLOAT4X4> mts;
-		for (XMFLOAT4X4 mt : Worlds) {
+		for (const XMFLOAT4X4& mt : Worlds) {
 			XMFLOAT4X4 xmf4x4World;
 			XMStoreFloat4x4(&xmf4x4World,
 				XMMatrixTranspose(XMLoadFloat4x4(&mt)));
@@ -419,15 +421,16 @@ void CGameObject::ReleaseUploadBuffers()
 
 void CGameObject::UpdateTransform(XMFLOAT4X4 *pxmf4x4Parent)
 {
+	//m_pParent->Worlds
 	if (isInstance) {
-		if (m_pSibling) m_pSibling->UpdateTransform(pxmf4x4Parent);
+		
+		
 		for (int i = 0; i < (int)Transforms.size(); ++i) {
 			XMFLOAT4X4 local = Transforms[i];
 			Worlds[i] = (pxmf4x4Parent) ? Matrix4x4::Multiply(local, pxmf4x4Parent[i]) : local;
-
-			
 		}
 		if (m_pChild) m_pChild->UpdateTransform(Worlds.data());
+		if (m_pSibling) m_pSibling->UpdateTransform(pxmf4x4Parent);
 	}
 
 	else {
@@ -823,7 +826,7 @@ void CGameObject::PrintFrameInfo(CGameObject *pGameObject, CGameObject *pParent)
 	if (pGameObject->m_pChild) CGameObject::PrintFrameInfo(pGameObject->m_pChild, pGameObject);
 }
 
-CGameObject *CGameObject::LoadGeometryFromFile(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *pd3dCommandList, ID3D12RootSignature *pd3dGraphicsRootSignature, char *pstrFileName)
+CGameObject *CGameObject::LoadGeometryFromFile(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *pd3dCommandList, ID3D12RootSignature *pd3dGraphicsRootSignature, const char *pstrFileName)
 {
 	FILE *pInFile = NULL;
 	::fopen_s(&pInFile, pstrFileName, "rb");
